@@ -349,7 +349,9 @@ async def _get_music_directory(c: Ctx) -> Response:
 async def _search(c: Ctx):
     # missing/empty query means "match everything", matching Navidrome/gonic (clients
     # like Arpeggi rely on this for their "all songs" view)
-    q = c.p("query") or None
+    q = c.p("query")
+    if q in (None, "", '""', "''"):
+        q = None
     a_count = max(c.pint("artistCount", 20) or 0, 0)
     a_offset = max(c.pint("artistOffset", 0) or 0, 0)
     al_count = max(c.pint("albumCount", 20) or 0, 0)
