@@ -1,11 +1,11 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { onDestroy, untrack } from 'svelte';
-	import { SvelteSet } from 'svelte/reactivity';
 	import {
 		deletePlaylist,
 		resolvePlaylistSources,
-		requestMissingTracks,
+		requestMissingSpotifyTracks,
+		checkLocalSpotify,
 		isRedactedPlaylist,
 		type PlaylistDetail,
 		type PlaylistDetailItem,
@@ -62,15 +62,15 @@
 	let isOwner = $derived(playlist?.is_owner ?? false);
 	let canDelete = $derived((playlist?.is_owner ?? false) || authStore.isAdmin);
 
-	let missingAlbumCount = $derived.by(() => {
+	// Count individual tracks missing from the library (not distinct albums): a track with
+	// an album_id but no resolved sources is one we can request from Soulseek.
+	let missingTrackCount = $derived.by(() => {
 		if (!playlist) return 0;
-		const seen = new SvelteSet<string>();
+		let count = 0;
 		for (const t of playlist.tracks) {
-			if (t.album_id && (!t.available_sources || t.available_sources.length === 0)) {
-				seen.add(t.album_id);
-			}
+			if (t.album_id && (!t.available_sources || t.available_sources.length === 0)) count++;
 		}
-		return seen.size;
+		return count;
 	});
 
 	let requesting = $state(false);
@@ -79,8 +79,13 @@
 		if (requesting || !playlist) return;
 		requesting = true;
 		try {
-			const result = await requestMissingTracks(playlist.id);
-			toastStore.show({ message: result.message, type: 'success' });
+			const result = await requestMissingSpotifyTracks(playlist.id);
+			toastStore.show({ message: `Requested ${result.count} tracks`, type: 'success' });
+			// If the backend echoed the created request and any track still lacks a source,
+			// nudge the offline reconciler so downloaded files flip Unknown -> Local.
+			if (result.id && result.tracks?.some((t) => !t.source_type)) {
+				void checkLocalSpotify(result.id);
+			}
 		} catch {
 			toastStore.show({ message: "Couldn't submit requests", type: 'error' });
 		} finally {
@@ -170,6 +175,11 @@
 				// Clone so optimistic child mutations never touch the query cache.
 				playlist = { ...d, tracks: d.tracks.map((t) => ({ ...t })) };
 				void resolveAndCacheSources(d.id);
+				// Reconcile any still-unlinked tracks against the local library on load so
+				// ones downloaded since the last visit flip Unknown -> Local.
+				if (d.tracks.some((t) => !t.source_type)) {
+					void checkLocalSpotify(d.id);
+				}
 			} else {
 				playlist = null;
 			}
@@ -202,14 +212,32 @@
 
 	function playFromTrack(index: number) {
 		if (!playlist || playlist.tracks.length === 0) return;
+		const clicked = playlist.tracks[index];
+		if (!clicked) return;
+
+		// Clicking the row that's already the current queue item toggles play/pause.
+		const current = playerStore.currentQueueItem;
+		const isCurrent = current
+			? current.playlistTrackId
+				? current.playlistTrackId === clicked.id
+				: current.trackSourceId === clicked.track_source_id &&
+					current.sourceType === clicked.source_type
+			: false;
+		if (isCurrent && playerStore.isPlaying) {
+			playerStore.togglePlay();
+			return;
+		}
+
+		// `index` is a row index into the FULL list, but `items` is filtered to playable
+		// tracks only - resolve by the clicked track's id so we start the right one.
 		const items = playlist.tracks
 			.map(playlistTrackToQueueItem)
 			.filter((item): item is NonNullable<typeof item> => item !== null);
-		if (items.length === 0) {
+		const startIndex = items.findIndex((item) => item.playlistTrackId === clicked.id);
+		if (startIndex < 0) {
 			toastStore.show({ message: 'Nothing here can be played right now', type: 'info' });
 			return;
 		}
-		const startIndex = Math.min(index, items.length - 1);
 		playerStore.playQueue(items, startIndex, false);
 	}
 
@@ -374,14 +402,14 @@
 				</div>
 			</div>
 
-			{#if isOwner && missingAlbumCount > 0}
+			{#if isOwner && missingTrackCount > 0}
 				<div
 					class="flex items-center gap-3 rounded-xl border border-base-300/40 bg-base-200/40 px-4 py-3"
 				>
 					<Download class="h-4 w-4 shrink-0 text-base-content/50" />
 					<p class="flex-1 text-sm text-base-content/70">
-						{missingAlbumCount}
-						{missingAlbumCount === 1 ? 'album' : 'albums'} not in your library
+						{missingTrackCount}
+						{missingTrackCount === 1 ? 'track' : 'tracks'} not in your library
 					</p>
 					<button
 						class="btn btn-accent btn-sm"
@@ -393,7 +421,7 @@
 						{:else}
 							<Download class="h-3.5 w-3.5" />
 						{/if}
-						Request {missingAlbumCount === 1 ? 'album' : missingAlbumCount + ' albums'}
+						Request {missingTrackCount === 1 ? 'track' : missingTrackCount + ' tracks'}
 					</button>
 				</div>
 			{/if}

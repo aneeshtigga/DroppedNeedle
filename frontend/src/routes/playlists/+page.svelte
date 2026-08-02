@@ -13,6 +13,7 @@
 	import { createCreatePlaylistMutation } from '$lib/queries/playlists/PlaylistMutations.svelte';
 	import { ListMusic, Plus, Lock } from 'lucide-svelte';
 	import SpotifyIcon from '$lib/components/SpotifyIcon.svelte';
+	import ImportSpotifyCsv from './ImportSpotifyCsv.svelte';
 	import PlaylistCard from '$lib/components/PlaylistCard.svelte';
 	import RedactedPlaylistCard from '$lib/components/RedactedPlaylistCard.svelte';
 	import PlaylistCardSkeleton from '$lib/components/PlaylistCardSkeleton.svelte';
@@ -88,6 +89,7 @@
 	<div class="flex items-center justify-between gap-3">
 		<h1 class="text-2xl font-bold sm:text-3xl">Playlists</h1>
 		<div class="flex items-center gap-2">
+			<ImportSpotifyCsv onimported={() => void query.refetch()} />
 			{#if spotifyLinked}
 				<a
 					href="/playlists/spotify"

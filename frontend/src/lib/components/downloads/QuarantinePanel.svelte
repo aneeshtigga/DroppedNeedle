@@ -2,6 +2,7 @@
 	import { AlertTriangle, ShieldCheck, Trash2 } from 'lucide-svelte';
 
 	import EmptyState from '$lib/components/EmptyState.svelte';
+	import { getApiUrl } from '$lib/api/api-utils';
 	import {
 		deleteQuarantineEntry,
 		getQuarantineQuery
@@ -9,6 +10,44 @@
 
 	const query = getQuarantineQuery();
 	const del = deleteQuarantineEntry();
+
+	// Release a quarantined slskd grab into the library. Text cycles
+	// Accept -> Accepting... -> Accepted ✓ / No file found.
+	type AcceptState = 'idle' | 'accepting' | 'accepted' | 'notfound';
+	let acceptState = $state<Record<number, AcceptState>>({});
+
+	function acceptLabel(id: number): string {
+		switch (acceptState[id]) {
+			case 'accepting':
+				return 'Accepting...';
+			case 'accepted':
+				return 'Accepted ✓';
+			case 'notfound':
+				return 'No file found';
+			default:
+				return 'Accept';
+		}
+	}
+
+	async function acceptEntry(id: number) {
+		const current = acceptState[id];
+		if (current === 'accepting' || current === 'accepted') return;
+		acceptState = { ...acceptState, [id]: 'accepting' };
+		try {
+			const res = await fetch(getApiUrl(`/api/v1/me/spotify/accept-quarantine/${id}`), {
+				method: 'POST',
+				credentials: 'include'
+			});
+			if (!res.ok) throw new Error();
+			const json = (await res.json()) as { status?: string };
+			acceptState = {
+				...acceptState,
+				[id]: json && json.status === 'accepted' ? 'accepted' : 'notfound'
+			};
+		} catch {
+			acceptState = { ...acceptState, [id]: 'idle' };
+		}
+	}
 
 	// two-step inline confirm; UX-5/§8.9 require confirmation for this permanent deletion
 	let confirmId = $state<number | null>(null);
@@ -69,6 +108,13 @@
 						<span class="text-base-content/30"> · </span>{fmtDate(entry.quarantined_at)}
 					</p>
 				</div>
+				<button
+					class="btn btn-xs gap-1 btn-success"
+					onclick={() => void acceptEntry(entry.id)}
+					disabled={acceptState[entry.id] === 'accepting' || acceptState[entry.id] === 'accepted'}
+				>
+					{acceptLabel(entry.id)}
+				</button>
 				<button
 					class="btn btn-xs gap-1 {confirmId === entry.id ? 'btn-error' : 'btn-ghost'}"
 					onclick={() => requestDelete(entry.id)}

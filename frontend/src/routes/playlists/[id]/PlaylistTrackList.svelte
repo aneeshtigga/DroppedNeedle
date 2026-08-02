@@ -18,7 +18,8 @@
 	import type { MenuItem } from '$lib/components/ContextMenu.svelte';
 	import SourcePickerDropdown from '$lib/components/SourcePickerDropdown.svelte';
 	import NowPlayingIndicator from '$lib/components/NowPlayingIndicator.svelte';
-	import { Music, Trash2, ListPlus, ListStart, GripVertical, Play, X } from 'lucide-svelte';
+	import RequestTrackButton from './RequestTrackButton.svelte';
+	import { Music, Trash2, ListPlus, ListStart, GripVertical, Play, Pause, X } from 'lucide-svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 
 	interface Props {
@@ -413,7 +414,20 @@
 
 					{#if isCurrentlyPlaying}
 						<div class="w-6 flex items-center justify-center shrink-0">
-							<NowPlayingIndicator />
+							<span class="flex items-center justify-center group-hover:hidden">
+								<NowPlayingIndicator />
+							</span>
+							<button
+								type="button"
+								class="hidden w-6 group-hover:flex items-center justify-center cursor-pointer text-primary"
+								aria-label="Pause {track.track_name}"
+								onclick={(e) => {
+									e.stopPropagation();
+									playerStore.togglePlay();
+								}}
+							>
+								<Pause class="h-4 w-4" />
+							</button>
 						</div>
 					{:else}
 						<span
@@ -485,6 +499,10 @@
 							availableSources={track.available_sources ?? [track.source_type]}
 							onchange={(src) => void handleSourceChange(track, src)}
 						/>
+					{/if}
+
+					{#if (!track.source_type || track.source_type === 'unknown') && track.album_id}
+						<RequestTrackButton playlistId={playlist.id} {track} />
 					{/if}
 
 					<div

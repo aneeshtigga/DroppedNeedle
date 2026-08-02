@@ -112,7 +112,7 @@
 </script>
 
 <div
-	class="deck-droptarget relative flex flex-col items-center gap-6 rounded-3xl border border-base-content/5 bg-base-200/40 p-6 backdrop-blur-sm sm:p-8"
+	class="deck-droptarget relative flex flex-col items-center gap-6 rounded-3xl border border-base-content/5 bg-base-200/40 p-6 sm:p-8"
 	class:is-over={dragOver}
 	role="region"
 	aria-label="Now playing turntable - drop a track here to play it"
@@ -128,8 +128,7 @@
 		></div>
 
 		<div
-			class="turntable-platter vinyl-spin absolute inset-0 rounded-full"
-			class:is-paused={!isPlaying}
+			class="turntable-platter absolute inset-0 rounded-full"
 		>
 			<div
 				class="pointer-events-none absolute inset-[9%] rounded-full border border-base-content/[0.06]"

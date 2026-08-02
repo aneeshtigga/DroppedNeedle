@@ -1,5 +1,6 @@
 import { API } from '$lib/constants';
 import { api } from '$lib/api/client';
+import { getApiUrl } from '$lib/api/api-utils';
 import type { QueueItem } from '$lib/player/types';
 
 export interface PlaylistTrack {
@@ -201,4 +202,79 @@ export interface BatchRequestResult {
 
 export async function requestMissingTracks(id: string): Promise<BatchRequestResult> {
 	return api.global.post<BatchRequestResult>(API.playlists.requestMissing(id));
+}
+
+/**
+ * Result of a Spotify-import missing-tracks request. The backend returns
+ * {status, count, task_id}; some deployments also echo the created request id and
+ * the affected tracks, so those are optional and used only when present.
+ */
+export interface SpotifyMissingTracksResult {
+	status: string;
+	count: number;
+	task_id?: string | null;
+	id?: string;
+	tracks?: { source_type?: string | null }[];
+}
+
+/**
+ * Queue Soulseek requests for every track in a Spotify-imported playlist that is not
+ * yet in the library. Hits the /me/spotify/* endpoints directly (cookie session,
+ * same-origin) - these are not part of the typed api client.
+ */
+export async function requestMissingSpotifyTracks(
+	playlistId: string
+): Promise<SpotifyMissingTracksResult> {
+	const res = await fetch(getApiUrl(`/api/v1/me/spotify/request-missing-tracks/${playlistId}`), {
+		method: 'POST',
+		credentials: 'include'
+	});
+	if (!res.ok) throw new Error(`request-missing-tracks -> ${res.status}`);
+	return res.json();
+}
+
+/** One row of a parsed Exportify/Spotify CSV. `duration` is in SECONDS. */
+export interface SpotifyCsvTrack {
+	track_name: string;
+	artist_name?: string;
+	album_name?: string;
+	/** MUST be sent when present: drives server-side ISRC-exact library matching. */
+	isrc?: string;
+	track_number?: number | null;
+	disc_number?: number | null;
+	duration?: number | null;
+}
+
+/**
+ * Import a parsed CSV as a new playlist via the Spotify import-csv endpoint. The server
+ * creates the playlist, then ISRC-exact/name-matches tracks against the local library and
+ * resolves cover art in the background (202). Sends the whole track list in one request.
+ */
+export async function importSpotifyCsv(
+	name: string,
+	tracks: SpotifyCsvTrack[]
+): Promise<{ playlist_id: string }> {
+	const res = await fetch(getApiUrl('/api/v1/me/spotify/import-csv'), {
+		method: 'POST',
+		credentials: 'include',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ name, tracks })
+	});
+	if (!res.ok) throw new Error(`import-csv -> ${res.status}`);
+	return res.json();
+}
+
+/**
+ * Fire-and-forget offline reconciliation: flips still-Unknown tracks to Local when the
+ * files have since been downloaded/imported. Safe to call on every playlist load.
+ */
+export async function checkLocalSpotify(playlistId: string): Promise<void> {
+	try {
+		await fetch(getApiUrl(`/api/v1/me/spotify/check-local/${playlistId}`), {
+			method: 'POST',
+			credentials: 'include'
+		});
+	} catch {
+		/* best-effort */
+	}
 }

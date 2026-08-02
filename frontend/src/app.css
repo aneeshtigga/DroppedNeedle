@@ -896,8 +896,10 @@ textarea {
 		transform: rotate(360deg);
 	}
 }
+/* Vinyl spin disabled: the perpetual rotation forced continuous GPU compositing on the
+   Deck view. The platter now renders static (no .vinyl-spin class on the turntable). */
 .vinyl-spin {
-	animation: spin-vinyl 4.2s linear infinite;
+	animation: none;
 }
 .vinyl-spin.is-paused {
 	animation-play-state: paused;
