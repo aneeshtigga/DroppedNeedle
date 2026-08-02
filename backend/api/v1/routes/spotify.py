@@ -668,7 +668,7 @@ async def import_csv(
 ) -> CsvImportResponse:
     record = await svc._playlist_service.create_playlist(
         body.name or "Imported Playlist",
-        source_ref=f"csv:{body.name}",
+        source_ref=f"spotify:{body.name}",
         user_id=current_user.id,
     )
     initial = [_csv_track_dict(it, None) for it in body.tracks]

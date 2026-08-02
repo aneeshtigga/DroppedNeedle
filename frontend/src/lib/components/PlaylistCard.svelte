@@ -11,6 +11,7 @@
 	import { authStore } from '$lib/stores/authStore.svelte';
 	import NavidromeIcon from '$lib/components/NavidromeIcon.svelte';
 	import PlexIcon from '$lib/components/PlexIcon.svelte';
+	import SpotifyIcon from '$lib/components/SpotifyIcon.svelte';
 	import PlaylistMosaic from './PlaylistMosaic.svelte';
 	import { importingPlaylists } from '$lib/stores/importingPlaylists.svelte';
 
@@ -191,6 +192,8 @@
 						<NavidromeIcon class="h-3 w-3" />
 					{:else if sourceType === 'plex'}
 						<PlexIcon class="h-3 w-3" />
+					{:else if sourceType === 'spotify'}
+						<SpotifyIcon class="h-3 w-3" />
 					{/if}
 					<span>{sourceLabel}</span>
 				</div>
