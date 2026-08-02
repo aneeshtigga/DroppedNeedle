@@ -13,6 +13,7 @@
 	} from '$lib/api/playlists';
 	import { playlistTrackToQueueItem } from '$lib/player/queueHelpers';
 	import { playerStore } from '$lib/stores/player.svelte';
+	import { importingPlaylists } from '$lib/stores/importingPlaylists.svelte';
 	import { toastStore } from '$lib/stores/toast';
 	import { authStore } from '$lib/stores/authStore.svelte';
 	import { getCacheTTL } from '$lib/stores/cacheTtl';
@@ -381,6 +382,15 @@
 				<div
 					class="absolute inset-0 bg-linear-to-b from-transparent via-base-100/50 to-base-100/80 rounded-box pointer-events-none"
 				></div>
+
+				{#if importingPlaylists.has(playlist.id)}
+					<div
+						class="absolute top-3 right-3 z-20 flex items-center gap-1.5 rounded-full bg-base-100/80 px-3 py-1 shadow-md backdrop-blur-sm pointer-events-none"
+					>
+						<span class="loading loading-spinner loading-xs text-primary"></span>
+						<span class="text-[11px] font-medium text-base-content/80">Importing…</span>
+					</div>
+				{/if}
 
 				<div class="relative z-10 p-4 sm:p-6 lg:p-8">
 					<div class="mb-4">

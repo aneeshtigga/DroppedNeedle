@@ -328,14 +328,7 @@ async def _background_import(
     # Tell the detail/list UI the import finished so the tracks appear without a manual
     # refresh. Fires whenever populate succeeded (auto-link above is best-effort). The
     # event_id lets the client de-dupe the SSEPublisher's replay-to-new-subscribers.
-    try:
-        await get_sse_publisher().publish(
-            f"user:{user_id}",
-            "playlist_imported",
-            {"playlist_id": playlist_id, "event_id": uuid.uuid4().hex},
-        )
-    except Exception as exc:  # noqa: BLE001
-        logger.warning(f"Failed to signal Spotify import completion for {playlist_id}: {exc}")
+    await _publish_imported(user_id, playlist_id, done=True)
 
 
 @router.get("/playlists", response_model=SpotifyPlaylistListResponse)
@@ -437,12 +430,12 @@ def _csv_track_dict(item: "CsvTrackItem", mbid: str | None) -> dict:
     }
 
 
-async def _publish_imported(user_id: str, playlist_id: str) -> None:
+async def _publish_imported(user_id: str, playlist_id: str, done: bool = False) -> None:
     try:
         await get_sse_publisher().publish(
             f"user:{user_id}",
             "playlist_imported",
-            {"playlist_id": playlist_id, "event_id": uuid.uuid4().hex},
+            {"playlist_id": playlist_id, "event_id": uuid.uuid4().hex, "done": done},
         )
     except Exception as exc:  # noqa: BLE001
         logger.warning(f"SSE publish failed for {playlist_id}: {exc}")
@@ -664,7 +657,7 @@ async def _csv_enrich(
         await _resolve_covers(svc, playlist_id, items, user_id)
     except Exception as exc:  # noqa: BLE001
         logger.warning(f"CSV cover-resolve failed for {playlist_id}: {exc}")
-    await _publish_imported(user_id, playlist_id)
+    await _publish_imported(user_id, playlist_id, done=True)
 
 
 @router.post("/import-csv", response_model=CsvImportResponse, status_code=202)
@@ -718,7 +711,7 @@ async def relink_playlist(
             await _resolve_covers(svc, playlist_id, [], current_user.id)
         except Exception as exc:  # noqa: BLE001
             logger.warning(f"Relink cover-resolve failed for {playlist_id}: {exc}")
-        await _publish_imported(current_user.id, playlist_id)
+        await _publish_imported(current_user.id, playlist_id, done=True)
 
     if not registry.is_running(task_key):
         task = asyncio.create_task(_run())

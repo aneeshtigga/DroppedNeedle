@@ -3,6 +3,7 @@ import { toastStore } from '$lib/stores/toast';
 import { authStore } from '$lib/stores/authStore.svelte';
 import { invalidateQueriesWithPersister } from '$lib/queries/QueryClient';
 import { PlaylistQueryKeyFactory } from '$lib/queries/playlists/PlaylistQueryKeyFactory';
+import { importingPlaylists } from '$lib/stores/importingPlaylists.svelte';
 import { FollowQueryKeyFactory } from '$lib/queries/following/FollowQueryKeyFactory';
 import { WantedQueryKeyFactory } from '$lib/queries/wanted/WantedQueryKeyFactory';
 import { DropImportQueryKeyFactory } from '$lib/queries/import/DropImportQueryKeyFactory';
@@ -64,7 +65,9 @@ export function createFollowingEvents() {
 		const eventId = typeof data.event_id === 'string' ? data.event_id : '';
 		if (!playlistId || (eventId && importsSeen.has(eventId))) return;
 		if (eventId) importsSeen.add(eventId);
-		// import finished populating - refresh the open detail view and the list count
+		// The terminal event (linking + cover art done) clears the card/hero import loader.
+		if (data.done === true) importingPlaylists.remove(playlistId);
+		// import progressed/finished - refresh the open detail view and the list count
 		const userId = authStore.user?.id;
 		void invalidateQueriesWithPersister({
 			queryKey: PlaylistQueryKeyFactory.detail(userId, playlistId)

@@ -2,6 +2,10 @@
 	import { goto } from '$app/navigation';
 	import { toastStore } from '$lib/stores/toast';
 	import { importSpotifyCsv, type SpotifyCsvTrack } from '$lib/api/playlists';
+	import { importingPlaylists } from '$lib/stores/importingPlaylists.svelte';
+	import { authStore } from '$lib/stores/authStore.svelte';
+	import { invalidateQueriesWithPersister } from '$lib/queries/QueryClient';
+	import { PlaylistQueryKeyFactory } from '$lib/queries/playlists/PlaylistQueryKeyFactory';
 
 	interface Props {
 		/** Called after at least one CSV imported successfully (e.g. to refetch the list). */
@@ -132,6 +136,12 @@
 		// Post the full list to the Spotify import-csv endpoint: the server creates the
 		// playlist and runs ISRC-exact + name matching / cover resolution in the background.
 		const { playlist_id } = await importSpotifyCsv(name, tracks);
+		// Show the playlist in the list right away (with its cover loader) before the first
+		// SSE arrives; the loader clears on the terminal `playlist_imported` (done) event.
+		importingPlaylists.add(playlist_id);
+		void invalidateQueriesWithPersister({
+			queryKey: PlaylistQueryKeyFactory.list(authStore.user?.id)
+		});
 		return playlist_id;
 	}
 

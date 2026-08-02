@@ -12,6 +12,7 @@
 	import NavidromeIcon from '$lib/components/NavidromeIcon.svelte';
 	import PlexIcon from '$lib/components/PlexIcon.svelte';
 	import PlaylistMosaic from './PlaylistMosaic.svelte';
+	import { importingPlaylists } from '$lib/stores/importingPlaylists.svelte';
 
 	interface Props {
 		playlist: PlaylistSummary;
@@ -19,6 +20,9 @@
 	}
 
 	let { playlist, ondelete }: Props = $props();
+
+	// True while the playlist's import is still linking files / fetching cover art.
+	let isImporting = $derived(importingPlaylists.has(playlist.id));
 
 	// Mutations (delete) are owner-only; admins may delete any playlist for cleanup (D4).
 	let canDelete = $derived(playlist.is_owner || authStore.isAdmin);
@@ -166,6 +170,16 @@
 					rounded="none"
 				/>
 			</div>
+			{#if isImporting}
+				<div
+					class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-1.5 bg-base-100/60 backdrop-blur-sm pointer-events-none"
+				>
+					<span class="loading loading-spinner loading-md text-primary"></span>
+					<span class="text-[10px] font-medium uppercase tracking-wider text-base-content/70"
+						>Importing…</span
+					>
+				</div>
+			{/if}
 			{#if sourceType}
 				<div
 					class="absolute top-2 right-2 flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider shadow-md backdrop-blur-sm"
