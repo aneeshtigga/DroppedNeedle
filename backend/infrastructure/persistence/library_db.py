@@ -1357,6 +1357,27 @@ class LibraryDB(PersistenceBase):
 
         return await self._read(operation)
 
+    @staticmethod
+    def _unlink_orphaned_playlist_tracks(conn: sqlite3.Connection) -> int:
+        """Unlink playlist tracks whose local file is no longer an active library
+        file (just soft-deleted, or gone). Leaves the row in the playlist but resets
+        it to Unknown so it renders as missing/requestable instead of pointing at a
+        dead file. Idempotent; only touches local links (library_file_id is set for
+        those alone, never for jellyfin/navidrome/plex sources). Runs in the caller's
+        write txn so the unlink is atomic with the soft-delete."""
+        if conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='playlist_tracks'"
+        ).fetchone() is None:
+            return 0
+        cursor = conn.execute(
+            "UPDATE playlist_tracks "
+            "SET source_type = '', track_source_id = NULL, library_file_id = NULL, "
+            "    available_sources = NULL, format = NULL "
+            "WHERE library_file_id IS NOT NULL "
+            "  AND library_file_id NOT IN (SELECT id FROM library_files WHERE deleted_at IS NULL)"
+        )
+        return cursor.rowcount
+
     async def soft_delete_library_file(self, file_path: str) -> None:
         now = time.time()
 
@@ -1365,6 +1386,7 @@ class LibraryDB(PersistenceBase):
                 "UPDATE library_files SET deleted_at = ? WHERE file_path = ? AND deleted_at IS NULL",
                 (now, file_path),
             )
+            self._unlink_orphaned_playlist_tracks(conn)
 
         await self._write(operation)
 
@@ -1387,6 +1409,7 @@ class LibraryDB(PersistenceBase):
                     "WHERE release_group_mbid = ? AND deleted_at IS NULL",
                     (now, normalized),
                 )
+                self._unlink_orphaned_playlist_tracks(conn)
             return paths
 
         return await self._write(operation)
@@ -1482,6 +1505,7 @@ class LibraryDB(PersistenceBase):
                 conn.executemany(
                     "UPDATE library_files SET deleted_at = ? WHERE id = ?", to_delete
                 )
+                self._unlink_orphaned_playlist_tracks(conn)
             return len(to_delete)
 
         return await self._write(operation)
